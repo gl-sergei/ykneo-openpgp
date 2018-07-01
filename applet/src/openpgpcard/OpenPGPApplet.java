@@ -2,17 +2,17 @@
  * Java Card implementation of the OpenPGP card
  * Copyright (C) 2012-2014  Yubico AB
  * Copyright (C) 2011  Joeri de Ruiter <joeri@cs.ru.nl>
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
@@ -24,7 +24,7 @@ import javacard.security.*;
 import javacardx.crypto.*;
 
 /**
- * AID of the applet should be according to the OpenPGP card standard v2.0.1 
+ * AID of the applet should be according to the OpenPGP card standard v2.0.1
  * E.g. D2760001240102000000000000010000:
  * D276000124 - RID of FSFE
  * 01 - OpenPGP application
@@ -49,7 +49,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	// Openpgp defines 6983 as AUTHENTICATION BLOCKED
 	private static final short SW_AUTHENTICATION_BLOCKED = 0x6983;
 
-	private static final byte[] EXTENDED_CAP = { 
+	private static final byte[] EXTENDED_CAP = {
 			(byte) 0xF8, // Support for GET CHALLENGE
 						 // Support for Key Import
 						 // PW1 Status byte changeable
@@ -73,7 +73,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	private static short LANG_MAX_LENGTH = 8;
 	private static short CERT_MAX_LENGTH = 1216;
 	private static short PRIVATE_DO_MAX_LENGTH = 254;
-	
+
 	private static short FP_LENGTH = 20;
 
 	private static byte PW1_MIN_LENGTH = 6;
@@ -155,15 +155,14 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	private boolean chain = false;
 	private byte chain_ins = 0;
 	private short chain_p1p2 = 0;
-	
+
 	private OpenPGPSecureMessaging sm;
 	private boolean sm_success = false;
 
 	private boolean terminated = false;
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
-		new OpenPGPApplet().register(bArray, (short) (bOffset + 1),
-                bArray[bOffset]);
+		new OpenPGPApplet();
 	}
 
 	private void initialize() {
@@ -189,7 +188,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 		// Initialize Secure Messaging
 		sm.init();
-		
+
 		loginData = new byte[LOGINDATA_MAX_LENGTH];
 		loginData_length = 0;
 		url = new byte[URL_MAX_LENGTH];
@@ -201,7 +200,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		cert = null;
 		cert_length = 0;
 		sex = 0x39;
-		
+
 		private_use_do_1 = new byte[PRIVATE_DO_MAX_LENGTH];
 		private_use_do_1_length = 0;
 		private_use_do_2 = new byte[PRIVATE_DO_MAX_LENGTH];
@@ -212,10 +211,12 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		private_use_do_4_length = 0;
 
 		ds_counter = new byte[3];
-		
+
 		ca1_fp = new byte[FP_LENGTH];
 		ca2_fp = new byte[FP_LENGTH];
 		ca3_fp = new byte[FP_LENGTH];
+
+		register();
 	}
 
 	public OpenPGPApplet() {
@@ -227,7 +228,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 		cipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
 		random = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
-		
+
 		sm = new OpenPGPSecureMessaging();
 
 		initialize();
@@ -249,9 +250,9 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		byte p2 = buf[OFFSET_P2];
 		short p1p2 = Util.makeShort(p1, p2);
 		short lc = (short) (buf[OFFSET_LC] & 0xFF);
- 
+
 		// Secure messaging
-		//TODO Force SM if contactless is used		
+		//TODO Force SM if contactless is used
 		sm_success = false;
 		if ((byte) (cla & (byte) 0x0C) == (byte) 0x0C) {
 			// Force initialization of SSC before using SM to prevent replays
@@ -261,14 +262,14 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 			lc = sm.unwrapCommandAPDU();
 			sm_success = true;
 		}
-		
+
 		short status = SW_NO_ERROR;
 		short le = 0;
-		
+
 		try {
 			// Support for command chaining
 			commandChaining(apdu);
-	
+
 			// Reset buffer for GET RESPONSE
 			if (ins != (byte) 0xC0) {
 				out_sent = 0;
@@ -301,7 +302,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 				// Reset only available for PW1
 				if (p2 != (byte) 0x81)
 					ISOException.throwIt(SW_INCORRECT_P1P2);
-	
+
 				resetRetryCounter(apdu, p1);
 				break;
 
@@ -319,7 +320,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 				}
 
 				break;
-	
+
 			// INTERNAL AUTHENTICATE
 			case (byte) 0x88:
 				le = internalAuthenticate(apdu);
@@ -398,7 +399,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 			status = e.getReason();
 		} finally {
 			if (status != (short)0x9000) {
-				// Send the exception that was thrown 
+				// Send the exception that was thrown
 				sendException(apdu, status);
 			} else {
 				// GET RESPONSE
@@ -436,13 +437,17 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	/**
 	 * Provide support for command chaining by storing the received data in
 	 * buffer
-	 * 
+	 *
 	 * @param apdu
 	 */
 	private void commandChaining(APDU apdu) {
 		byte[] buf = apdu.getBuffer();
 		short p1p2 = Util.makeShort(buf[OFFSET_P1], buf[OFFSET_P2]);
 		short len = (short) (buf[OFFSET_LC] & 0xFF);
+
+		if (len > 0) {
+			apdu.setIncomingAndReceive();
+		}
 
 		// Reset chaining if it was not yet initiated
 		if (!chain) {
@@ -505,10 +510,10 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the VERIFY command (INS 20)
-	 * 
+	 *
 	 * Verify one of the passwords depending on mode: - 81: PW1 for a PSO:CDS
 	 * command - 82: PW1 for other commands - 83: PW3
-	 * 
+	 *
 	 * @param apdu
 	 * @param mode
 	 *            Password and mode to be verified
@@ -549,9 +554,9 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the CHANGE REFERENCE DATA command (INS 24)
-	 * 
+	 *
 	 * Change the password specified using mode: - 81: PW1 - 82: PW3
-	 * 
+	 *
 	 * @param apdu
 	 * @param mode
 	 *            Password to be changed
@@ -592,9 +597,9 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the RESET RETRY COUNTER command (INS 2C)
-	 * 
+	 *
 	 * Reset PW1 either using the Resetting Code (mode = 00) or PW3 (mode = 02)
-	 * 
+	 *
 	 * @param apdu
 	 * @param mode
 	 *            Mode used to reset PW1
@@ -633,13 +638,13 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the PSO: COMPUTE DIGITAL SIGNATURE command (INS 2A, P1P2 9E9A)
-	 * 
+	 *
 	 * Sign the data provided using the key for digital signatures.
-	 * 
+	 *
 	 * Before using this method PW1 has to be verified with mode No. 81. If the
 	 * first status byte of PW1 is 00, access condition PW1 with No. 81 is
 	 * reset.
-	 * 
+	 *
 	 * @param apdu
 	 * @return Length of data written in buffer
 	 */
@@ -663,11 +668,11 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the PSO: DECIPHER command (INS 2A, P1P2 8086)
-	 * 
+	 *
 	 * Decrypt the data provided using the key for confidentiality.
-	 * 
+	 *
 	 * Before using this method PW1 has to be verified with mode No. 82.
-	 * 
+	 *
 	 * @param apdu
 	 * @return Length of data written in buffer
 	 */
@@ -688,10 +693,10 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the INTERNAL AUTHENTICATE command (INS 88)
-	 * 
+	 *
 	 * Sign the data provided using the key for authentication. Before using
 	 * this method PW1 has to be verified with mode No. 82.
-	 * 
+	 *
 	 * @param apdu
 	 * @return Length of data written in buffer
 	 */
@@ -710,15 +715,15 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the GENERATE ASYMMETRIC KEY PAIR command (INS 47)
-	 * 
+	 *
 	 * For mode 80, generate a new key pair, specified in the first element of
 	 * buffer, and output the public key.
-	 * 
+	 *
 	 * For mode 81, output the public key specified in the first element of
 	 * buffer.
-	 * 
+	 *
 	 * Before using this method PW3 has to be verified.
-	 * 
+	 *
 	 * @param apdu
 	 * @param mode
 	 *            Generate key pair (80) or read public key (81)
@@ -744,9 +749,9 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the GET CHALLENGE command (INS 84)
-	 * 
+	 *
 	 * Generate a random number of the length given in len.
-	 * 
+	 *
 	 * @param apdu
 	 * @param len
 	 *            Length of the requested challenge
@@ -758,7 +763,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 		random.generateData(buffer, _0, len);
 
-		// Set the SSC used in Secure Messaging if the size of the requested 
+		// Set the SSC used in Secure Messaging if the size of the requested
 		// challenge is equal to the size of the SSC
 		if (len == sm.getSSCSize()) {
 			sm.setSSC(buffer, _0);
@@ -769,9 +774,9 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Provide the GET DATA command (INS CA)
-	 * 
+	 *
 	 * Output the data specified with tag.
-	 * 
+	 *
 	 * @param apdu
 	 * @param tag
 	 *            Tag of the requested data
@@ -962,17 +967,17 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		default:
 			ISOException.throwIt(SW_RECORD_NOT_FOUND);
 		}
-		
+
 		return offset;
 	}
 
 	/**
 	 * Provide the PUT DATA command (INS DA)
-	 * 
+	 *
 	 * Write the data specified using tag.
-	 * 
+	 *
 	 * Before using this method PW3 has to be verified.
-	 * 
+	 *
 	 * @param apdu
 	 * @param tag
 	 *            Tag of the requested data
@@ -1179,16 +1184,16 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		case (short) 0x00D1:
 			sm.setSessionKeyEncryption(buffer, _0);
 			break;
-			
+
 		// D2 - SM-Key-MAC
 		case (short) 0x00D2:
 			sm.setSessionKeyMAC(buffer, _0);
 			break;
-			
+
 		// F4 - SM-Key-Container
 		case (short) 0x00F4:
 			short offset = 0;
-			short key_len = 0; 
+			short key_len = 0;
 			// Set encryption key
 			if (buffer[offset++] == (byte)0xD1) {
 				key_len = (short)(buffer[offset++] & 0x7F);
@@ -1196,7 +1201,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 				offset += key_len;
 			}
 
-			// Set MAC key			
+			// Set MAC key
 			if (buffer[offset++] == (byte)0xD2) {
 				key_len = (short)(buffer[offset++] & 0x7F);
 				sm.setSessionKeyMAC(buffer, offset);
@@ -1232,7 +1237,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * EXPERIMENTAL: Provide functionality for importing keys.
-	 * 
+	 *
 	 * @param apdu
 	 */
 	private void importKey(APDU apdu) {
@@ -1325,7 +1330,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Output the public key of the given key pair.
-	 * 
+	 *
 	 * @param apdu
 	 * @param key
 	 *            Key pair containing public key to be output
@@ -1370,7 +1375,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	/**
 	 * Send len bytes from buffer. If len is greater than RESPONSE_MAX_LENGTH,
 	 * remaining data can be retrieved using GET RESPONSE.
-	 * 
+	 *
 	 * @param apdu
 	 * @param len
 	 *            The byte length of the data to send
@@ -1383,35 +1388,35 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Send provided status
-	 * 
+	 *
 	 * @param apdu
 	 * @param status Status to send
 	 */
 	private void sendException(APDU apdu, short status) {
 		out_sent = 0;
 		out_left = 0;
-		sendNext(apdu, status);		
+		sendNext(apdu, status);
 	}
-	
+
 	/**
 	 * Send next block of data in buffer. Used for sending data in <buffer>
-	 * 
+	 *
 	 * @param apdu
-	 */	
+	 */
 	private void sendNext(APDU apdu) {
 		sendNext(apdu, SW_NO_ERROR);
-	}	
-	
+	}
+
 	/**
 	 * Send next block of data in buffer. Used for sending data in <buffer>
-	 * 
+	 *
 	 * @param apdu
 	 * @param status Status to send
 	 */
 	private void sendNext(APDU apdu, short status) {
 		byte[] buf = APDU.getCurrentAPDUBuffer();
 		apdu.setOutgoing();
-		
+
 		// Determine maximum size of the messages
 		short max_length;
 		if (sm_success) {
@@ -1419,7 +1424,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		} else {
 			max_length = RESPONSE_MAX_LENGTH;
 		}
-		
+
 		if (max_length > out_left) {
 			max_length = out_left;
 		}
@@ -1429,11 +1434,11 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 		short len = 0;
 		if (out_left > max_length) {
 			len = max_length;
-			
+
 			// Compute byte left and sent
 			out_left -= max_length;
 			out_sent += max_length;
-			
+
 			// Determine new status word
 			if (out_left > max_length) {
 				status = (short) (SW_BYTES_REMAINING_00 | max_length);
@@ -1445,14 +1450,14 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 			// Reset buffer
 			out_sent = 0;
-			out_left = 0;			
+			out_left = 0;
 		}
-		
+
 		// If SM is used, wrap response
 		if (sm_success) {
 			len = sm.wrapResponseAPDU(buf, _0, len, status);
 		}
-				
+
 		// Send data in buffer
 		apdu.setOutgoingLength(len);
 		apdu.sendBytes(_0, len);
@@ -1464,7 +1469,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Get length of TLV element.
-	 * 
+	 *
 	 * @param data
 	 *            Byte array
 	 * @param offset
@@ -1490,7 +1495,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 
 	/**
 	 * Get number of bytes needed to represent length for TLV element.
-	 * 
+	 *
 	 * @param length
 	 *            Length of value
 	 * @return Number of bytes needed to represent length
@@ -1508,7 +1513,7 @@ public class OpenPGPApplet extends Applet implements ISO7816 {
 	/**
 	 * Return the key of the type requested: - B6: Digital signatures - B8:
 	 * Confidentiality - A4: Authentication
-	 * 
+	 *
 	 * @param type
 	 *            Type of key to be returned
 	 * @return Key of requested type
